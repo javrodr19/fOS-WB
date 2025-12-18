@@ -1,34 +1,78 @@
-//! Clean Tabbed Browser - Vertical Tabs with Lazy Loading
+//! fOS-WB - Minimal Browser with Session Persistence
 //!
 //! Features:
 //! - Vertical tabs on left
 //! - URL bar at bottom
 //! - Lazy loading: tabs only load when activated
-//! - Keyboard shortcuts: Ctrl+T/W/R/L
+//! - Session persistence: saves tabs on close, restores on open
+//! - Cookie persistence: stay logged in across restarts
+//! - Full keyboard control
 
 use gtk4::prelude::*;
 use gtk4::{
-    Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label,
+    Application, ApplicationWindow, Box as GtkBox, Entry, Label,
     ListBox, ListBoxRow, Orientation, ScrolledWindow, Separator,
     EventControllerKey, gdk::ModifierType, SelectionMode,
 };
 use webkit6::prelude::*;
-use webkit6::WebView;
+use webkit6::{WebView, NetworkSession, CookiePersistentStorage};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::path::PathBuf;
+use std::fs;
 use tracing::info;
+use serde::{Serialize, Deserialize};
+
+/// Session data saved to disk
+#[derive(Serialize, Deserialize, Default)]
+struct SessionData {
+    tabs: Vec<String>,
+    active_tab: usize,
+}
+
+/// Get data directory for browser
+fn get_data_dir() -> PathBuf {
+    let dir = dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("fos-wb");
+    fs::create_dir_all(&dir).ok();
+    dir
+}
+
+/// Load saved session
+fn load_session() -> SessionData {
+    let path = get_data_dir().join("session.json");
+    if let Ok(data) = fs::read_to_string(&path) {
+        serde_json::from_str(&data).unwrap_or_default()
+    } else {
+        SessionData::default()
+    }
+}
+
+/// Save session to disk
+fn save_session(tabs: &[String], active_tab: usize) {
+    let data = SessionData { 
+        tabs: tabs.to_vec(), 
+        active_tab 
+    };
+    let path = get_data_dir().join("session.json");
+    if let Ok(json) = serde_json::to_string_pretty(&data) {
+        fs::write(path, json).ok();
+    }
+}
 
 /// Browser state
 struct BrowserState {
     tabs: Vec<TabInfo>,
     active_tab: usize,
+    session: NetworkSession,
 }
 
 struct TabInfo {
     webview: WebView,
     row: ListBoxRow,
     url: String,
-    loaded: bool,  // Track if content has been loaded
+    loaded: bool,
 }
 
 /// Run the browser
@@ -49,9 +93,30 @@ pub fn run_webview() -> anyhow::Result<()> {
 }
 
 fn build_ui(app: &Application) {
+    // Create persistent network session for cookies
+    let data_dir = get_data_dir();
+    let cache_dir = data_dir.join("cache");
+    fs::create_dir_all(&cache_dir).ok();
+    
+    let session = NetworkSession::new(
+        Some(&data_dir.to_string_lossy()),
+        Some(&cache_dir.to_string_lossy()),
+    );
+    
+    // Enable persistent cookies
+    if let Some(cookie_manager) = session.cookie_manager() {
+        let cookies_path = data_dir.join("cookies.sqlite");
+        cookie_manager.set_persistent_storage(
+            &cookies_path.to_string_lossy(),
+            CookiePersistentStorage::Sqlite,
+        );
+        info!("Cookies will persist to {:?}", cookies_path);
+    }
+    
     let state = Rc::new(RefCell::new(BrowserState {
         tabs: Vec::new(),
         active_tab: 0,
+        session: session.clone(),
     }));
 
     let window = ApplicationWindow::builder()
@@ -65,7 +130,7 @@ fn build_ui(app: &Application) {
 
     // === LEFT SIDEBAR (Vertical Tabs) ===
     let sidebar = GtkBox::new(Orientation::Vertical, 0);
-    sidebar.set_width_request(180);
+    sidebar.set_width_request(160);
     sidebar.add_css_class("sidebar");
 
     let tab_list = ListBox::new();
@@ -92,28 +157,56 @@ fn build_ui(app: &Application) {
     content_box.append(&webview_container);
 
     // === BOTTOM BAR ===
-    let bottom_bar = GtkBox::new(Orientation::Horizontal, 4);
+    let bottom_bar = GtkBox::new(Orientation::Horizontal, 0);
     bottom_bar.set_margin_start(8);
     bottom_bar.set_margin_end(8);
     bottom_bar.set_margin_top(4);
     bottom_bar.set_margin_bottom(8);
 
-    let back_btn = Button::with_label("←");
-    let forward_btn = Button::with_label("→");
-
     let address_bar = Entry::new();
     address_bar.set_hexpand(true);
     address_bar.set_placeholder_text(Some("Enter URL or search..."));
 
-    bottom_bar.append(&back_btn);
-    bottom_bar.append(&forward_btn);
     bottom_bar.append(&address_bar);
-
     content_box.append(&bottom_bar);
     main_box.append(&content_box);
 
-    // Create first tab (this one loads immediately)
-    create_tab(&state, &tab_list, &webview_container, &address_bar, "https://duckduckgo.com", true);
+    // Load saved session or create default tab
+    let saved_session = load_session();
+    if saved_session.tabs.is_empty() {
+        create_tab(&state, &tab_list, &webview_container, &address_bar, "https://duckduckgo.com", true);
+    } else {
+        // Restore saved tabs
+        for (i, url) in saved_session.tabs.iter().enumerate() {
+            let load_now = i == saved_session.active_tab;
+            create_tab(&state, &tab_list, &webview_container, &address_bar, url, load_now);
+        }
+        // Set correct active tab
+        let mut s = state.borrow_mut();
+        if saved_session.active_tab < s.tabs.len() {
+            s.active_tab = saved_session.active_tab;
+            for (i, tab) in s.tabs.iter().enumerate() {
+                tab.webview.set_visible(i == saved_session.active_tab);
+            }
+        }
+        info!("Restored {} tabs from session", saved_session.tabs.len());
+    }
+
+    // === Save session on close ===
+    {
+        let s = state.clone();
+        window.connect_close_request(move |_| {
+            let state = s.borrow();
+            let urls: Vec<String> = state.tabs.iter().map(|t| {
+                t.webview.uri()
+                    .map(|u| u.to_string())
+                    .unwrap_or_else(|| t.url.clone())
+            }).collect();
+            save_session(&urls, state.active_tab);
+            info!("Session saved with {} tabs", urls.len());
+            gtk4::glib::Propagation::Proceed
+        });
+    }
 
     // === Tab selection - LAZY LOADING ===
     {
@@ -126,20 +219,17 @@ fn build_ui(app: &Application) {
                     if idx < state.tabs.len() {
                         state.active_tab = idx;
                         
-                        // Hide all tabs, show selected
                         for (i, tab) in state.tabs.iter().enumerate() {
                             tab.webview.set_visible(i == idx);
                         }
                         
-                        // Lazy load: if tab hasn't loaded yet, load it now
+                        // Lazy load
                         if !state.tabs[idx].loaded {
                             let url = state.tabs[idx].url.clone();
                             state.tabs[idx].webview.load_uri(&url);
                             state.tabs[idx].loaded = true;
-                            info!("Lazy loading tab: {}", url);
                         }
                         
-                        // Update address bar
                         if let Some(uri) = state.tabs[idx].webview.uri() {
                             addr.set_text(&uri);
                         } else {
@@ -151,7 +241,7 @@ fn build_ui(app: &Application) {
         });
     }
 
-    // === Keyboard shortcuts ===
+    // === KEYBOARD SHORTCUTS ===
     let key_controller = EventControllerKey::new();
     {
         let s = state.clone();
@@ -161,28 +251,32 @@ fn build_ui(app: &Application) {
         key_controller.connect_key_pressed(move |_, key, _, modifiers| {
             if modifiers.contains(ModifierType::CONTROL_MASK) {
                 match key.name().as_deref() {
+                    // Ctrl+T: New tab
                     Some("t") => {
-                        // New tab - DON'T load immediately (lazy)
                         create_tab(&s, &tl, &container, &addr, "https://duckduckgo.com", false);
                         return gtk4::glib::Propagation::Stop;
                     }
+                    // Ctrl+W: Close tab
                     Some("w") => {
                         let mut state = s.borrow_mut();
-                        if state.tabs.len() > 1 && state.active_tab < state.tabs.len() {
+                        if state.tabs.len() > 1 {
                             let idx = state.active_tab;
-                            container.remove(&state.tabs[idx].webview);
-                            tl.remove(&state.tabs[idx].row);
-                            state.tabs.remove(idx);
-                            
-                            let new_idx = if idx > 0 { idx - 1 } else { 0 };
-                            if new_idx < state.tabs.len() {
+                            if idx < state.tabs.len() {
+                                container.remove(&state.tabs[idx].webview);
+                                tl.remove(&state.tabs[idx].row);
+                                state.tabs.remove(idx);
+                                
+                                let new_idx = idx.saturating_sub(1).min(state.tabs.len().saturating_sub(1));
                                 state.active_tab = new_idx;
-                                state.tabs[new_idx].webview.set_visible(true);
-                                tl.select_row(Some(&state.tabs[new_idx].row));
+                                if new_idx < state.tabs.len() {
+                                    state.tabs[new_idx].webview.set_visible(true);
+                                    tl.select_row(Some(&state.tabs[new_idx].row));
+                                }
                             }
                         }
                         return gtk4::glib::Propagation::Stop;
                     }
+                    // Ctrl+R: Reload
                     Some("r") => {
                         let state = s.borrow();
                         if state.active_tab < state.tabs.len() {
@@ -190,9 +284,66 @@ fn build_ui(app: &Application) {
                         }
                         return gtk4::glib::Propagation::Stop;
                     }
-                    Some("l") => {
+                    // Ctrl+I: Focus URL bar
+                    Some("i") => {
                         addr.grab_focus();
                         addr.select_region(0, -1);
+                        return gtk4::glib::Propagation::Stop;
+                    }
+                    // Ctrl+O: Tab above
+                    Some("o") => {
+                        let mut state = s.borrow_mut();
+                        if state.tabs.len() > 1 && state.active_tab > 0 {
+                            state.tabs[state.active_tab].webview.set_visible(false);
+                            let new_idx = state.active_tab - 1;
+                            state.active_tab = new_idx;
+                            state.tabs[new_idx].webview.set_visible(true);
+                            if !state.tabs[new_idx].loaded {
+                                let url = state.tabs[new_idx].url.clone();
+                                state.tabs[new_idx].webview.load_uri(&url);
+                                state.tabs[new_idx].loaded = true;
+                            }
+                            tl.select_row(Some(&state.tabs[new_idx].row));
+                            if let Some(uri) = state.tabs[new_idx].webview.uri() {
+                                addr.set_text(&uri);
+                            }
+                        }
+                        return gtk4::glib::Propagation::Stop;
+                    }
+                    // Ctrl+L: Tab below
+                    Some("l") => {
+                        let mut state = s.borrow_mut();
+                        if state.tabs.len() > 1 && state.active_tab < state.tabs.len() - 1 {
+                            state.tabs[state.active_tab].webview.set_visible(false);
+                            let new_idx = state.active_tab + 1;
+                            state.active_tab = new_idx;
+                            state.tabs[new_idx].webview.set_visible(true);
+                            if !state.tabs[new_idx].loaded {
+                                let url = state.tabs[new_idx].url.clone();
+                                state.tabs[new_idx].webview.load_uri(&url);
+                                state.tabs[new_idx].loaded = true;
+                            }
+                            tl.select_row(Some(&state.tabs[new_idx].row));
+                            if let Some(uri) = state.tabs[new_idx].webview.uri() {
+                                addr.set_text(&uri);
+                            }
+                        }
+                        return gtk4::glib::Propagation::Stop;
+                    }
+                    // Ctrl+K: Go back
+                    Some("k") => {
+                        let state = s.borrow();
+                        if state.active_tab < state.tabs.len() {
+                            state.tabs[state.active_tab].webview.go_back();
+                        }
+                        return gtk4::glib::Propagation::Stop;
+                    }
+                    // Ctrl+Ñ: Go forward
+                    Some("ntilde") | Some("Ntilde") | Some("ñ") | Some("Ñ") => {
+                        let state = s.borrow();
+                        if state.active_tab < state.tabs.len() {
+                            state.tabs[state.active_tab].webview.go_forward();
+                        }
                         return gtk4::glib::Propagation::Stop;
                     }
                     _ => {}
@@ -202,26 +353,6 @@ fn build_ui(app: &Application) {
         });
     }
     window.add_controller(key_controller);
-
-    // Navigation buttons
-    {
-        let s = state.clone();
-        back_btn.connect_clicked(move |_| {
-            let state = s.borrow();
-            if state.active_tab < state.tabs.len() {
-                state.tabs[state.active_tab].webview.go_back();
-            }
-        });
-    }
-    {
-        let s = state.clone();
-        forward_btn.connect_clicked(move |_| {
-            let state = s.borrow();
-            if state.active_tab < state.tabs.len() {
-                state.tabs[state.active_tab].webview.go_forward();
-            }
-        });
-    }
 
     // Address bar
     {
@@ -251,7 +382,7 @@ fn build_ui(app: &Application) {
     css.load_from_data(r#"
         .sidebar { background: shade(@window_bg_color, 0.95); }
         .sidebar listbox { background: transparent; }
-        .sidebar listbox row { padding: 8px 12px; border-radius: 4px; margin: 2px 4px; }
+        .sidebar listbox row { padding: 6px 10px; border-radius: 4px; margin: 1px 4px; }
         .sidebar listbox row:selected { background: alpha(@accent_color, 0.2); }
     "#);
     gtk4::style_context_add_provider_for_display(
@@ -263,7 +394,7 @@ fn build_ui(app: &Application) {
     window.set_child(Some(&main_box));
     window.present();
 
-    info!("Browser ready with lazy loading");
+    info!("Browser ready with session persistence");
 }
 
 fn create_tab(
@@ -272,34 +403,28 @@ fn create_tab(
     container: &GtkBox,
     address_bar: &Entry,
     url: &str,
-    load_now: bool,  // Whether to load immediately or defer
+    load_now: bool,
 ) {
-    let webview = WebView::new();
+    // Use shared persistent session for all tabs
+    let session = state.borrow().session.clone();
+    let webview = WebView::builder()
+        .network_session(&session)
+        .build();
 
-    // Memory-optimized settings
+    // Settings
     if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
-        // Essential features only
         settings.set_enable_javascript(true);
         settings.set_enable_smooth_scrolling(true);
         settings.set_hardware_acceleration_policy(webkit6::HardwareAccelerationPolicy::Always);
-        
-        // Disable dev tools in release (saves memory)
-        #[cfg(debug_assertions)]
-        settings.set_enable_developer_extras(true);
-        #[cfg(not(debug_assertions))]
         settings.set_enable_developer_extras(false);
-        
-        // Disable unused features to save memory
-        settings.set_enable_media(true);  // Keep media for videos
-        settings.set_enable_webgl(false);  // Disable WebGL to save GPU memory
-        settings.set_enable_webaudio(false);  // Disable WebAudio if not needed
-        
-        // Reduce memory usage
-        settings.set_enable_page_cache(false);  // Disable back/forward cache
+        settings.set_enable_webgl(false);
+        settings.set_enable_webaudio(true);
+        settings.set_enable_media(true);
+        settings.set_enable_page_cache(false);
         settings.set_enable_offline_web_application_cache(false);
+        settings.set_enable_dns_prefetching(true);
     }
 
-    // Only load if requested (first tab loads, Ctrl+T tabs don't until selected)
     if load_now {
         webview.load_uri(url);
     }
@@ -311,7 +436,7 @@ fn create_tab(
     let row_label = Label::new(Some(if load_now { "Loading..." } else { "New Tab" }));
     row_label.set_halign(gtk4::Align::Start);
     row_label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
-    row_label.set_max_width_chars(18);
+    row_label.set_max_width_chars(16);
     row.set_child(Some(&row_label));
 
     // Update tab title
@@ -363,12 +488,6 @@ fn create_tab(
     webview.set_visible(true);
     tab_list.select_row(Some(&row));
     address_bar.set_text(url);
-
-    if load_now {
-        info!("Tab opened and loaded: {}", url);
-    } else {
-        info!("Tab created (lazy): {}", url);
-    }
 }
 
 /// Browser wrapper
