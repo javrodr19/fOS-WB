@@ -1,0 +1,22 @@
+[package]
+name = "fos-wb"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "fos-wb"
+path = "src/main.rs"
+
+[dependencies]
+fos-memory = { path = "../fos-memory" }
+fos-tabs = { path = "../fos-tabs" }
+fos-network = { path = "../fos-network" }
+fos-ui = { path = "../fos-ui" }
+
+mimalloc.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true

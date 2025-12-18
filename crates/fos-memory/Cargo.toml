@@ -1,0 +1,16 @@
+[package]
+name = "fos-memory"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+mimalloc.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+zstd.workspace = true
+image.workspace = true
+sysinfo.workspace = true

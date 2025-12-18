@@ -1,0 +1,58 @@
+# Rust
+/target/
+Cargo.lock
+
+# Build artifacts
+*.so
+*.dylib
+*.dll
+*.exe
+*.pdb
+
+# IDE and editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Generated files
+*.rs.bk
+*.rlib
+
+# Testing
+*.profraw
+*.profdata
+coverage/
+
+# Local configuration (contains private keys!)
+config/vpn_regions_local.toml
+config/vpn_regions_local.json
+*.local.toml
+*.local.json
+
+# VPN private keys (NEVER commit these!)
+*.key
+*.pem
+private_key.txt
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Benchmarks
+benchmark_results/
+
+# Documentation build
+/doc/

@@ -1,0 +1,16 @@
+[package]
+name = "fos-ui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+fos-tabs = { path = "../fos-tabs" }
+fos-render = { path = "../fos-render" }
+
+winit.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+pollster = "0.4"
