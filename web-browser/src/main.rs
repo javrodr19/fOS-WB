@@ -3,7 +3,9 @@
 //! A high-performance, ultra-lightweight web browser using tao + wry.
 //! Implements a shared-state architecture with sandboxed webview.
 
+mod bridge;
 mod filter;
+mod protocol;
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -14,7 +16,9 @@ use tao::{
 };
 use wry::WebViewBuilder;
 
+use crate::bridge::{execute_command, BridgeCommand};
 use crate::filter::FILTER_ENGINE;
+use crate::protocol::handle_protocol_request;
 
 /// Application state managed by the Rust backend.
 /// This implements the "Shared-State" architecture pattern.
@@ -35,9 +39,10 @@ struct AppState {
 impl AppState {
     fn new() -> Self {
         Self {
-            current_url: String::from("https://www.google.com"),
+            // Start at fOS home page
+            current_url: String::from("fos://home"),
             is_loading: false,
-            title: String::from("Web Browser"),
+            title: String::from("fOS Browser"),
             is_focused: true,
             blocked_count: 0,
         }
@@ -59,9 +64,10 @@ const BACKGROUND_THROTTLE_MS: u64 = 100;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Pre-initialize the filter engine to avoid first-request latency
     println!(
-        "[Filter] Initialized with {} patterns",
+        "[fOS] Filter initialized with {} patterns",
         FILTER_ENGINE.pattern_count()
     );
+    println!("[fOS] Custom protocol handler: fos://");
     
     // Initialize shared application state
     let state: SharedState = Arc::new(Mutex::new(AppState::new()));
@@ -71,7 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Build the window with optimized settings
     let window = WindowBuilder::new()
-        .with_title("Web Browser")
+        .with_title("fOS Browser")
         .with_inner_size(tao::dpi::LogicalSize::new(1280.0, 800.0))
         .with_min_inner_size(tao::dpi::LogicalSize::new(400.0, 300.0))
         // Hardware acceleration is enabled by default via the GPU compositor
@@ -92,12 +98,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build the WebView with production-optimized settings
     let builder = WebViewBuilder::new()
-        // Navigate to initial URL
+        // Custom protocol handler for fos:// scheme
+        // This bypasses DNS/HTTP for instant loading of internal apps
+        .with_asynchronous_custom_protocol("fos".to_string(), move |_webview_id, request, responder| {
+            let uri = request.uri().to_string();
+            println!("[Protocol] Request: {}", uri);
+            
+            let response = match handle_protocol_request(&uri) {
+                Some(proto_response) => {
+                    wry::http::Response::builder()
+                        .status(200)
+                        .header("Content-Type", proto_response.mime_type)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(proto_response.data)
+                        .unwrap()
+                }
+                None => {
+                    wry::http::Response::builder()
+                        .status(404)
+                        .body(b"Not Found".to_vec())
+                        .unwrap()
+                }
+            };
+            responder.respond(response);
+        })
+        // Navigate to initial URL (fos://home)
         .with_url(&initial_url)
         // Disable context menu in production for cleaner UX
         .with_hotkeys_zoom(true)
         // Navigation handler - intercepts ALL navigation requests for filtering
         .with_navigation_handler(move |url| {
+            // Allow fos:// protocol
+            if url.starts_with("fos://") {
+                return true;
+            }
+            
             // Zero-allocation check against blocklist
             if FILTER_ENGINE.is_blocked(&url) {
                 // Update blocked count in state
@@ -113,14 +148,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             true // Allow the request
         })
-        // IPC handler for frontend-to-backend communication
+        // IPC handler for frontend-to-backend communication (Bridge)
         .with_ipc_handler(move |message| {
-            // Handle messages from the sandboxed webview
             let mut state_guard = webview_state.lock().unwrap();
             let body = message.body();
-            println!("[IPC] Received: {:?}", body);
+            println!("[Bridge] Received: {:?}", body);
             
-            // Parse and handle IPC commands here
+            // Parse and execute bridge command
+            let cmd = BridgeCommand::parse(body);
+            let response = execute_command(cmd);
+            
+            // Send response back to JavaScript
+            // Note: In a full implementation, we'd use evaluate_script to push the response
+            println!("[Bridge] Response: {}", &response[..response.len().min(100)]);
+            
+            // Handle navigation commands
             if body.starts_with("navigate:") {
                 state_guard.current_url = body.replace("navigate:", "");
             }
@@ -150,6 +192,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         builder.build_gtk(vbox)?
     };
 
+    println!("[fOS] Browser ready - navigate to fos://home");
+
     // Run the event loop with adaptive throttling
     event_loop.run(move |event, _, control_flow| {
         // Check if window is focused for throttling
@@ -173,7 +217,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Print final stats
                 if let Ok(state_guard) = state.lock() {
                     println!(
-                        "[Browser] Closing... Total blocked requests: {}",
+                        "[fOS] Closing... Total blocked requests: {}",
                         state_guard.blocked_count
                     );
                 }
@@ -192,9 +236,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Ok(mut state_guard) = state.lock() {
                     state_guard.is_focused = focused;
                     if focused {
-                        println!("[Browser] Window focused - full speed");
+                        println!("[fOS] Window focused - full speed");
                     } else {
-                        println!("[Browser] Window unfocused - throttling CPU");
+                        println!("[fOS] Window unfocused - throttling CPU");
                     }
                 }
             }

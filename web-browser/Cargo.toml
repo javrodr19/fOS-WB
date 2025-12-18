@@ -8,8 +8,8 @@ authors = ["Javier"]
 [dependencies]
 # Window handling - minimal features
 tao = { version = "0.30", default-features = false, features = ["rwh_06"] }
-# WebView engine - minimal features
-wry = { version = "0.47", default-features = false, features = ["os-webview"] }
+# WebView engine - with custom protocol support
+wry = { version = "0.47", default-features = false, features = ["os-webview", "protocol"] }
 # Fast multi-pattern matching (zero-allocation during search)
 aho-corasick = "1.1"
 # Lazy static initialization
