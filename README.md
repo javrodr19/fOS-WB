@@ -1,6 +1,6 @@
 # fOS-WB 🌐
 
-A minimal, keyboard-driven web browser built with Rust, GTK4, and WebKitGTK6. Features a powerful built-in adblocker using Brave's engine. It works sometimes, sometimes not.
+A minimal, keyboard-driven web browser built with Rust, GTK4, and WebKitGTK6. Features a powerful built-in adblocker using Brave's engine. It doesn't work with everything.
 
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)
