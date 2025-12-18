@@ -24,7 +24,7 @@ Tested on:
 |-----------|---------------|
 | **CPU** | AMD Ryzen 5 Pro 7535U (6-core, up to 4.6 GHz) |
 | **GPU** | AMD Radeon Graphics (integrated) |
-| **RAM** | 15 GB DDR5 |
+| **RAM** | 16 GB DDR5 |
 | **OS** | Manjaro Linux (Kernel 6.12) |
 
 ### Benchmarks
