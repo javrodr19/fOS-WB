@@ -23,10 +23,17 @@ use std::fs;
 use tracing::info;
 use serde::{Serialize, Deserialize};
 
+/// Tab data for session persistence
+#[derive(Serialize, Deserialize, Clone)]
+struct TabData {
+    url: String,
+    title: String,
+}
+
 /// Session data saved to disk
 #[derive(Serialize, Deserialize, Default)]
 struct SessionData {
-    tabs: Vec<String>,
+    tabs: Vec<TabData>,
     active_tab: usize,
 }
 
@@ -50,7 +57,7 @@ fn load_session() -> SessionData {
 }
 
 /// Save session to disk
-fn save_session(tabs: &[String], active_tab: usize) {
+fn save_session(tabs: &[TabData], active_tab: usize) {
     let data = SessionData { 
         tabs: tabs.to_vec(), 
         active_tab 
@@ -176,12 +183,12 @@ fn build_ui(app: &Application) {
     // Load saved session or create default tab
     let saved_session = load_session();
     if saved_session.tabs.is_empty() {
-        create_tab(&state, &tab_list, &webview_container, &address_bar, "https://duckduckgo.com", true);
+        create_tab(&state, &tab_list, &webview_container, &address_bar, "https://duckduckgo.com", "DuckDuckGo", true);
     } else {
-        // Restore saved tabs
-        for (i, url) in saved_session.tabs.iter().enumerate() {
+        // Restore saved tabs with their titles
+        for (i, tab_data) in saved_session.tabs.iter().enumerate() {
             let load_now = i == saved_session.active_tab;
-            create_tab(&state, &tab_list, &webview_container, &address_bar, url, load_now);
+            create_tab(&state, &tab_list, &webview_container, &address_bar, &tab_data.url, &tab_data.title, load_now);
         }
         // Set correct active tab
         let mut s = state.borrow_mut();
@@ -199,13 +206,18 @@ fn build_ui(app: &Application) {
         let s = state.clone();
         window.connect_close_request(move |_| {
             let state = s.borrow();
-            let urls: Vec<String> = state.tabs.iter().map(|t| {
-                t.webview.uri()
-                    .map(|u| u.to_string())
-                    .unwrap_or_else(|| t.url.clone())
+            let tabs: Vec<TabData> = state.tabs.iter().map(|t| {
+                TabData {
+                    url: t.webview.uri()
+                        .map(|u| u.to_string())
+                        .unwrap_or_else(|| t.url.clone()),
+                    title: t.webview.title()
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "New Tab".to_string()),
+                }
             }).collect();
-            save_session(&urls, state.active_tab);
-            info!("Session saved with {} tabs", urls.len());
+            save_session(&tabs, state.active_tab);
+            info!("Session saved with {} tabs", tabs.len());
             gtk4::glib::Propagation::Proceed
         });
     }
@@ -255,7 +267,7 @@ fn build_ui(app: &Application) {
                 match key.name().as_deref() {
                     // Ctrl+T: New tab
                     Some("t") => {
-                        create_tab(&s, &tl, &container, &addr, "https://duckduckgo.com", false);
+                        create_tab(&s, &tl, &container, &addr, "https://duckduckgo.com", "New Tab", false);
                         return gtk4::glib::Propagation::Stop;
                     }
                     // Ctrl+W: Close tab
@@ -405,6 +417,7 @@ fn create_tab(
     container: &GtkBox,
     address_bar: &Entry,
     url: &str,
+    title: &str,
     load_now: bool,
 ) {
     // Use shared persistent session for all tabs
@@ -463,7 +476,9 @@ fn create_tab(
     webview.set_hexpand(true);
 
     let row = ListBoxRow::new();
-    let row_label = Label::new(Some(if load_now { "Loading..." } else { "New Tab" }));
+    // Use saved title, or "Loading..." if actively loading
+    let initial_title = if load_now && title == "New Tab" { "Loading..." } else { title };
+    let row_label = Label::new(Some(initial_title));
     row_label.set_halign(gtk4::Align::Start);
     row_label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
     row_label.set_max_width_chars(16);
