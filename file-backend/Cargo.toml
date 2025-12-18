@@ -1,0 +1,39 @@
+[package]
+name = "file-backend"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance file management backend with zero-copy streaming"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.42", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+
+# Web framework
+axum = { version = "0.7", features = ["multipart"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "cors", "trace"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Authentication
+jsonwebtoken = "9.3"
+dashmap = "6.1"
+
+# Image processing (SIMD optimizations enabled by default)
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+
+# Utilities
+uuid = { version = "1.11", features = ["v4"] }
+mime_guess = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = 'abort'
+strip = true
+opt-level = 3

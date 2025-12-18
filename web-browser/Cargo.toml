@@ -1,0 +1,32 @@
+[package]
+name = "web-browser"
+version = "0.1.0"
+edition = "2021"
+description = "Ultra-lightweight web browser core"
+authors = ["Javier"]
+
+[dependencies]
+# Window handling - minimal features
+tao = { version = "0.30", default-features = false, features = ["rwh_06"] }
+# WebView engine - minimal features
+wry = { version = "0.47", default-features = false, features = ["os-webview"] }
+# Fast multi-pattern matching (zero-allocation during search)
+aho-corasick = "1.1"
+# Lazy static initialization
+once_cell = "1.19"
+
+[profile.release]
+# Enable Link-Time Optimization for smaller binary
+lto = true
+# Single codegen unit for better optimization
+codegen-units = 1
+# Abort on panic - eliminates unwinding code
+panic = 'abort'
+# Strip symbols from binary
+strip = true
+# Optimize for size
+opt-level = 'z'
+
+[profile.dev]
+# Faster compile times in development
+opt-level = 0

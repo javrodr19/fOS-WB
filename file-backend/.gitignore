@@ -1,0 +1,24 @@
+# Rust build artifacts
+/target/
+Cargo.lock
+
+# Upload directory (contains user files)
+/uploads/
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Debug files
+*.pdb

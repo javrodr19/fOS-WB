@@ -1,0 +1,31 @@
+[package]
+name = "chat-server"
+version = "0.1.0"
+edition = "2021"
+description = "Real-time chat server with Protobuf and actor-based state"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.42", features = ["full"] }
+
+# WebSocket
+tokio-tungstenite = "0.26"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+
+# Protobuf
+prost = "0.13"
+
+# Utilities
+uuid = { version = "1.11", features = ["v4"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[build-dependencies]
+prost-build = "0.13"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = 'abort'
+strip = true
+opt-level = 3

@@ -1,0 +1,11 @@
+[target.x86_64-unknown-linux-gnu]
+# Use LLD linker for faster linking (optional, requires lld installed)
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# Additional size optimizations for release builds
+[target.'cfg(all())']
+rustflags = ["-C", "target-cpu=native"]
+
+[build]
+# Incremental compilation for faster dev builds
+incremental = true
