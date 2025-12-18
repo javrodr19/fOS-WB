@@ -1,189 +1,113 @@
-# fOS-WB: Zero-Bloat Browser
+# fOS-WB 🌐
 
-A privacy-focused, ultra-lightweight web browser written in Rust, designed for minimal memory footprint (<50MB RAM) with integrated userspace VPN.
+A minimal, memory-efficient web browser built with Rust, GTK4, and WebKitGTK6.
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)
 
 ## Features
 
-- **Ultra-Light**: <50MB RAM with multiple tabs
-- **Userspace VPN**: WireGuard-based, no root required
-- **6 VPN Regions**: DE, JP, US, KR, RU, UK with auto-switching
-- **Kill Switch**: Prevents IP leaks when VPN drops
-- **Zero-Copy Content Blocking**: Bloom filter, <1μs per check
-- **Tab Hibernation**: Suspends inactive tabs to disk
-- **JIT-less JavaScript**: Interpreter-only mode for minimal RAM
+- **Vertical Tabs** - Clean sidebar layout with tabs on the left
+- **Lazy Loading** - Tabs only load content when activated (saves memory)
+- **Keyboard-First** - Full keyboard navigation support
+- **Minimal UI** - URL bar at bottom, no clutter
+- **Memory Efficient** - Optimized WebKit settings for low memory usage
+- **Fast Startup** - Uses mimalloc allocator
+
+## Screenshot
+
+```
+┌──────────┬─────────────────────────────────┐
+│ Tab 1    │                                 │
+│ Tab 2    │        Web Content              │
+│ Tab 3    │                                 │
+├──────────┴─────────────────────────────────┤
+│ ← →  [________URL________]                 │
+└────────────────────────────────────────────┘
+```
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+T` | New tab |
+| `Ctrl+W` | Close tab |
+| `Ctrl+R` | Reload page |
+| `Ctrl+L` | Focus URL bar |
+
+## Requirements
+
+### Linux (Arch/Manjaro)
+```bash
+sudo pacman -S gtk4 webkitgtk-6.0
+```
+
+### Linux (Ubuntu/Debian)
+```bash
+sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev
+```
+
+### Linux (Fedora)
+```bash
+sudo dnf install gtk4-devel webkitgtk6.0-devel
+```
+
+## Building
+
+```bash
+# Clone
+git clone https://github.com/yourusername/fOS-WB.git
+cd fOS-WB
+
+# Build (release)
+cargo build --release
+
+# Run
+./target/release/fos-wb
+```
+
+## Development
+
+```bash
+# Run with logging
+RUST_LOG=info cargo run
+
+# Run release build
+cargo run --release
+```
 
 ## Architecture
 
 ```
 fOS-WB/
 ├── crates/
-│   ├── fos-wb/        # Main binary
-│   ├── fos-memory/    # Memory management + allocators
-│   ├── fos-tabs/      # Tab isolation + hibernation
-│   ├── fos-network/   # HTTP client + content blocking
-│   ├── fos-render/    # wgpu rendering + UI widgets
-│   ├── fos-ui/        # Window management (winit)
-│   ├── fos-js/        # JavaScript engine config
-│   └── fos-vpn/       # WireGuard VPN + multi-region
-├── config/
-│   ├── vpn_regions.toml    # VPN server config (sample)
-│   └── vpn_regions.json    # VPN server config (alternative)
+│   ├── fos-wb/      # Main binary
+│   └── fos-ui/      # GTK4 + WebKitGTK browser UI
+├── Cargo.toml       # Workspace config
+└── README.md
 ```
 
-## Quick Start
+## Memory Optimizations
 
-### Prerequisites
+The browser includes several memory-saving features:
 
-- Rust 1.75+ (install via [rustup](https://rustup.rs))
-- Linux/macOS/Windows
+- **Lazy tab loading** - New tabs don't load until selected
+- **Disabled WebGL** - Saves GPU memory (re-enable if needed)
+- **Disabled page cache** - Reduces memory at cost of back/forward speed
+- **Disabled offline cache** - Less storage/memory usage
+- **mimalloc allocator** - More efficient memory allocation
 
-### Build
+## Tech Stack
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/fOS-WB.git
-cd fOS-WB
-
-# Build in release mode
-cargo build --release
-
-# Run tests
-cargo test
-```
-
-### Run
-
-```bash
-# Run the browser
-cargo run --release
-
-# Or run the built binary
-./target/release/fos-wb
-```
-
-## VPN Configuration
-
-### 1. Generate WireGuard Keys
-
-```bash
-# Generate private key
-wg genkey > private.key
-
-# Generate public key (share with VPN provider)
-cat private.key | wg pubkey > public.key
-```
-
-### 2. Configure VPN Regions
-
-Copy the sample config and add your credentials:
-
-```bash
-cp config/vpn_regions.toml config/vpn_regions_local.toml
-```
-
-Edit `config/vpn_regions_local.toml`:
-
-```toml
-# Your private key (KEEP SECRET!)
-private_key = "YOUR_BASE64_PRIVATE_KEY_HERE"
-
-# Your internal VPN IP (provided by VPN service)
-client_ip = "10.x.x.x"
-
-# DNS servers
-dns = ["1.1.1.1", "9.9.9.9"]
-
-# Regions (update with your VPN provider's info)
-[[regions]]
-id = "de"
-name = "Germany (Frankfurt)"
-endpoint_ip = "YOUR_SERVER_IP"
-endpoint_port = 51820
-public_key = "SERVER_PUBLIC_KEY"
-mtu = 1420
-enabled = true
-```
-
-### 3. MTU Tuning for Problematic Regions
-
-| Region | Recommended MTU | Reason |
-|--------|-----------------|--------|
-| DE, US, UK | 1420 | Standard |
-| JP | 1400 | Trans-Pacific |
-| KR | 1320 | ISP filtering |
-| RU | 1280 | Aggressive DPI |
-
-## Usage
-
-### VPN Location Picker
-
-Click the region indicator in the status bar `[DE ▼]` to:
-- View available regions with latency
-- Switch regions (500ms zero-leak pause)
-- Disconnect from VPN
-
-### Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| Ctrl+T | New tab |
-| Ctrl+W | Close tab |
-| Ctrl+L | Focus address bar |
-| Ctrl+R | Refresh |
-| F11 | Toggle fullscreen |
-
-## Memory Budget
-
-| Component | RAM Usage |
-|-----------|-----------|
-| Main process | ~2 MB |
-| Per active tab | 3-8 MB |
-| VPN + 64 connections | ~600 KB |
-| Hibernated tab | ~500 KB |
-| **Total (5 tabs)** | **~25 MB** |
-
-## Development
-
-### Running Tests
-
-```bash
-# All tests
-cargo test
-
-# Specific crate
-cargo test -p fos-vpn
-
-# With output
-cargo test -- --nocapture
-```
-
-### Building Documentation
-
-```bash
-cargo doc --open
-```
-
-## Security
-
-- **Kill Switch**: All traffic blocked when VPN disconnects
-- **Zero-Leak Switching**: 500ms network pause during region change
-- **No Logging**: No browsing history or VPN logs stored
-- **Pointer Compression**: Reduced attack surface in JS heap
-
-⚠️ **Never commit your `private_key` or `*_local.toml` files!**
+- **Rust** - Safe systems programming
+- **GTK4** - Modern Linux GUI toolkit
+- **WebKitGTK6** - Full web rendering engine
+- **mimalloc** - High-performance allocator
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-**109 tests passing** | Built with Rust 🦀
+Contributions welcome! Please open an issue or PR.
