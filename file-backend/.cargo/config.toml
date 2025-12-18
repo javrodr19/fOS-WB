@@ -1,0 +1,6 @@
+[build]
+# Native CPU optimizations
+rustflags = ["-C", "target-cpu=native"]
+
+[profile.release]
+incremental = false

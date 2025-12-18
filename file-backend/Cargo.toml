@@ -5,35 +5,36 @@ edition = "2021"
 description = "High-performance file management backend with zero-copy streaming"
 
 [dependencies]
-# Async runtime
-tokio = { version = "1.42", features = ["full"] }
-tokio-util = { version = "0.7", features = ["io"] }
+# Async runtime - minimal features
+tokio = { version = "1.42", default-features = false, features = ["rt-multi-thread", "net", "fs", "io-util", "sync", "time", "macros"] }
+tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
-# Web framework
-axum = { version = "0.7", features = ["multipart"] }
-tower = "0.5"
-tower-http = { version = "0.6", features = ["fs", "cors", "trace"] }
+# Web framework - minimal features
+axum = { version = "0.7", default-features = false, features = ["multipart", "tokio", "http1", "json"] }
+tower = { version = "0.5", default-features = false }
+tower-http = { version = "0.6", default-features = false, features = ["fs", "cors", "trace"] }
 
 # Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde = { version = "1.0", default-features = false, features = ["derive", "std"] }
+serde_json = { version = "1.0", default-features = false, features = ["std"] }
 
 # Authentication
 jsonwebtoken = "9.3"
 dashmap = "6.1"
 
-# Image processing (SIMD optimizations enabled by default)
+# Image processing - minimal codecs
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 
 # Utilities
-uuid = { version = "1.11", features = ["v4"] }
+uuid = { version = "1.11", default-features = false, features = ["v4", "std"] }
 mime_guess = "2.0"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "std"] }
 
 [profile.release]
-lto = true
+lto = "fat"
 codegen-units = 1
 panic = 'abort'
-strip = true
-opt-level = 3
+strip = "symbols"
+opt-level = 'z'
+

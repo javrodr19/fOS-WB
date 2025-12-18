@@ -5,27 +5,27 @@ edition = "2021"
 description = "Real-time chat server with Protobuf and actor-based state"
 
 [dependencies]
-# Async runtime
-tokio = { version = "1.42", features = ["full"] }
+# Async runtime - minimal features
+tokio = { version = "1.42", default-features = false, features = ["rt-multi-thread", "net", "sync", "time", "macros"] }
 
 # WebSocket
-tokio-tungstenite = "0.26"
+tokio-tungstenite = { version = "0.26", default-features = false, features = ["connect"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 
 # Protobuf
 prost = "0.13"
 
 # Utilities
-uuid = { version = "1.11", features = ["v4"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.11", default-features = false, features = ["v4", "std"] }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "std"] }
 
 [build-dependencies]
 prost-build = "0.13"
 
 [profile.release]
-lto = true
+lto = "fat"
 codegen-units = 1
 panic = 'abort'
-strip = true
-opt-level = 3
+strip = "symbols"
+opt-level = 'z'

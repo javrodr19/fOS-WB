@@ -16,14 +16,14 @@ aho-corasick = "1.1"
 once_cell = "1.19"
 
 [profile.release]
-# Enable Link-Time Optimization for smaller binary
-lto = true
+# Fat LTO for maximum size reduction
+lto = "fat"
 # Single codegen unit for better optimization
 codegen-units = 1
 # Abort on panic - eliminates unwinding code
 panic = 'abort'
-# Strip symbols from binary
-strip = true
+# Strip all symbols from binary
+strip = "symbols"
 # Optimize for size
 opt-level = 'z'
 
