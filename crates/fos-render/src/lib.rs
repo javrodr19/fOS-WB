@@ -31,6 +31,7 @@ mod chrome;
 mod text;
 mod color;
 mod vpn_picker;
+mod shapes;
 
 pub use gpu::{GpuContext, GpuConfig};
 pub use surface::{RenderSurface, SurfaceConfig};
@@ -41,3 +42,4 @@ pub use vpn_picker::{
     LocationPicker, LocationAction, VpnIndicator, VpnUiState,
     RegionInfo, DrawCmd, ZeroLeakSwitch,
 };
+pub use shapes::{ShapeRenderer, Vertex, UiBuilder};

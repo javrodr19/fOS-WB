@@ -10,6 +10,7 @@
 
 use fos_render::{
     BrowserChrome, ChromeAction, Color, GpuContext, RenderSurface, SurfaceConfig,
+    ShapeRenderer,
 };
 use fos_tabs::Runtime;
 use std::sync::Arc;
@@ -33,6 +34,8 @@ pub struct BrowserShell {
     gpu: Option<GpuContext>,
     /// Render surface
     surface: Option<RenderSurface<'static>>,
+    /// Shape renderer for UI
+    shapes: Option<ShapeRenderer>,
     /// Browser chrome (UI)
     chrome: Option<BrowserChrome>,
     /// Tab runtime
@@ -56,6 +59,7 @@ impl BrowserShell {
             window: None,
             gpu: None,
             surface: None,
+            shapes: None,
             chrome: None,
             runtime,
             last_frame: Instant::now(),
@@ -92,8 +96,13 @@ impl BrowserShell {
                     )
                 };
 
+                // Create shape renderer
+                let format = surface.format();
+                let shapes = ShapeRenderer::new(&gpu.device, format, size.width, size.height);
+
                 self.gpu = Some(gpu);
                 self.surface = Some(surface);
+                self.shapes = Some(shapes);
                 self.chrome = Some(BrowserChrome::new(size.width));
                 self.size = (size.width, size.height);
 
@@ -143,13 +152,21 @@ impl BrowserShell {
 
     /// Render a frame
     fn render(&mut self) {
+        let gpu = match &self.gpu {
+            Some(g) => g,
+            None => return,
+        };
         let surface = match &self.surface {
+            Some(s) => s,
+            None => return,
+        };
+        let shapes = match &mut self.shapes {
             Some(s) => s,
             None => return,
         };
 
         // Begin frame
-        let frame = match surface.begin_frame() {
+        let mut frame = match surface.begin_frame() {
             Ok(f) => f,
             Err(e) => {
                 warn!("Failed to begin frame: {}", e);
@@ -157,15 +174,62 @@ impl BrowserShell {
             }
         };
 
-        // Clear with chrome background color
-        let mut frame = frame;
-        frame.clear(Color::CHROME_BG);
+        // Clear background
+        frame.clear(Color::from_hex(0x1e1e2e)); // Dark purple-gray
 
-        // TODO: Draw chrome and web content
-        // For now, we just clear. Full rendering would:
-        // 1. Draw browser chrome (tabs, address bar)
-        // 2. Draw web page content
-        // 3. Draw overlays (menus, dialogs)
+        // Build UI shapes
+        let (w, h) = (self.size.0 as f32, self.size.1 as f32);
+        shapes.begin();
+
+        // Tab bar background (top)
+        shapes.rect(0.0, 0.0, w, 40.0, [0.15, 0.15, 0.18, 1.0]);
+
+        // Active tab
+        shapes.rect(8.0, 4.0, 180.0, 36.0, [0.22, 0.22, 0.27, 1.0]);
+
+        // New tab button
+        shapes.rect(196.0, 8.0, 28.0, 28.0, [0.18, 0.18, 0.22, 1.0]);
+
+        // Address bar background
+        shapes.rect(0.0, 40.0, w, 44.0, [0.12, 0.12, 0.14, 1.0]);
+
+        // Address bar input
+        shapes.rect(80.0, 48.0, w - 160.0, 28.0, [0.18, 0.18, 0.22, 1.0]);
+
+        // Back button
+        shapes.rect(8.0, 48.0, 28.0, 28.0, [0.16, 0.16, 0.20, 1.0]);
+
+        // Forward button
+        shapes.rect(42.0, 48.0, 28.0, 28.0, [0.16, 0.16, 0.20, 1.0]);
+
+        // Content area (white-ish for now to show it works)
+        shapes.rect(0.0, 84.0, w, h - 84.0 - 24.0, [0.95, 0.95, 0.95, 1.0]);
+
+        // Status bar at bottom
+        shapes.rect(0.0, h - 24.0, w, 24.0, [0.12, 0.12, 0.14, 1.0]);
+
+        // VPN indicator in status bar (green = connected look)
+        shapes.rect(w - 100.0, h - 20.0, 90.0, 16.0, [0.15, 0.35, 0.20, 1.0]);
+
+        // Render shapes
+        {
+            let mut render_pass = frame.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("UI Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &frame.view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // Keep the cleared background
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            shapes.render(&gpu.queue, &mut render_pass);
+        }
 
         // Present
         frame.present();

@@ -10,6 +10,7 @@ fos-tabs = { path = "../fos-tabs" }
 fos-render = { path = "../fos-render" }
 
 winit.workspace = true
+wgpu.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
 tokio.workspace = true
