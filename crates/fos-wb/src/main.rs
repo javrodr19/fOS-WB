@@ -1,7 +1,7 @@
 //! fOS-WB: Zero-Bloat Web Browser
 //!
 //! Main entry point for the browser. Initializes the global allocator,
-//! sets up logging, and launches the browser runtime.
+//! sets up logging, and launches the browser with system WebView.
 
 use anyhow::Result;
 use tracing::{info, Level};
@@ -21,12 +21,10 @@ fn main() -> Result<()> {
 
     info!("fOS-WB starting...");
     info!("Using mimalloc allocator");
+    info!("Using system WebView for full web compatibility");
 
-    // Initialize the browser runtime
-    let runtime = fos_tabs::Runtime::new()?;
-    
-    // Create the UI and run the event loop
-    fos_ui::run(runtime)?;
+    // Run the WebView-based browser
+    fos_ui::run_webview()?;
 
     info!("fOS-WB shutting down");
     Ok(())

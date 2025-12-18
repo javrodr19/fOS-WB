@@ -11,6 +11,8 @@ fos-render = { path = "../fos-render" }
 
 winit.workspace = true
 wgpu.workspace = true
+wry.workspace = true
+tao.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
 tokio.workspace = true
