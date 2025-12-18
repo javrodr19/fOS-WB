@@ -2,88 +2,26 @@
 resolver = "2"
 members = [
     "crates/fos-wb",
-    "crates/fos-memory",
-    "crates/fos-tabs",
-    "crates/fos-network",
     "crates/fos-ui",
-    "crates/fos-render",
-    "crates/fos-js",
-    "crates/fos-vpn",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 authors = ["fOS Team"]
-license = "MIT"
+license = "GPL-3.0"
 repository = "https://github.com/fos/fos-wb"
 
 [workspace.dependencies]
 # Memory allocator
 mimalloc = { version = "0.1", features = ["local_dynamic_tls"] }
 
-# Async runtime
-tokio = { version = "1.37", features = ["rt-multi-thread", "sync", "time", "macros", "net", "io-util"] }
-
-# Channel-based message passing
-crossbeam-channel = "0.5"
-
-# Windowing
-winit = "0.30"
-
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Error handling
-thiserror = "1.0"
 anyhow = "1.0"
-
-# Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-
-# Compression for hibernation
-zstd = "0.13"
-
-# Image processing for ghost tab bitmaps
-image = { version = "0.25", default-features = false, features = ["png"] }
-
-# System info for RSS monitoring
-sysinfo = "0.33"
-
-# Async networking (zero-copy)
-hyper = { version = "1.4", features = ["client", "http1", "http2"] }
-hyper-util = { version = "0.1", features = ["tokio", "client-legacy"] }
-http-body-util = "0.1"
-rustls = "0.23"
-tokio-rustls = "0.26"
-webpki-roots = "0.26"
-
-# URL parsing
-url = "2.5"
-
-# Bloom filter for content blocking
-bloomfilter = "1.0"
-xxhash-rust = { version = "0.8", features = ["xxh3"] }
-
-# DNS resolution
-hickory-resolver = "0.24"
-
-# GPU rendering (wgpu - cross-platform, Vulkan/Metal/DX12/WebGPU)
-wgpu = "24.0"
-raw-window-handle = "0.6"
-bytemuck = { version = "1.21", features = ["derive"] }
-
-# Font rendering (tiny, no dependencies)
-fontdue = "0.9"
-
-# Linear algebra for transforms
-glam = "0.29"
-
-# WebView embedding (uses system browser: WebKitGTK/WebView2/WebKit)
-wry = "0.47"
-tao = "0.30"
 
 [profile.release]
 lto = "fat"

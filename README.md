@@ -1,6 +1,6 @@
 # fOS-WB 🌐
 
-A minimal, keyboard-driven web browser built with Rust, GTK4, and WebKitGTK6. Optimized for low memory usage and fast performance.
+A minimal, keyboard-driven web browser built with Rust, GTK4, and WebKitGTK6. Features a powerful built-in adblocker using Brave's engine.
 
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)
@@ -8,6 +8,7 @@ A minimal, keyboard-driven web browser built with Rust, GTK4, and WebKitGTK6. Op
 
 ## ✨ Features
 
+- **Built-in Adblocker** - Powered by Brave's adblock-rust engine with 100k+ rules
 - **Vertical Tabs** - Clean sidebar layout with tabs on the left
 - **Lazy Loading** - Tabs only load content when activated (saves RAM)
 - **Session Persistence** - Tabs are saved on close and restored on open
@@ -15,7 +16,20 @@ A minimal, keyboard-driven web browser built with Rust, GTK4, and WebKitGTK6. Op
 - **Keyboard-First** - Full keyboard navigation, no mouse required
 - **Minimal UI** - URL bar at bottom, no buttons clutter
 - **Memory Efficient** - Optimized WebKit settings for low memory usage
-- **Fast Startup** - Uses mimalloc allocator, ~728KB binary
+
+## 🛡️ Adblocker
+
+The built-in adblocker uses the same engine as Brave browser with these filter lists:
+
+| Filter List | Description |
+|-------------|-------------|
+| EasyList | Primary ad blocking rules |
+| EasyPrivacy | Privacy protection rules |
+| uBlock Origin Filters | Enhanced ad blocking |
+| uBlock Origin Privacy | Enhanced privacy rules |
+| Peter Lowe's List | Ad server domains |
+
+Filter lists are automatically downloaded on first run and cached in `~/.local/share/fos-wb/filters/`.
 
 ## 📊 Performance Metrics
 
@@ -24,17 +38,18 @@ Tested on:
 |-----------|---------------|
 | **CPU** | AMD Ryzen 5 Pro 7535U (6-core, up to 4.6 GHz) |
 | **GPU** | AMD Radeon Graphics (integrated) |
-| **RAM** | 16 GB DDR5 |
+| **RAM** | 15 GB DDR5 |
 | **OS** | Manjaro Linux (Kernel 6.12) |
 
 ### Benchmarks
 
 | Metric | Value |
 |--------|-------|
-| **Binary Size** | ~728 KB |
+| **Binary Size** | ~5.4 MB |
 | **Startup Time** | <1 second |
 | **Idle Memory (1 tab)** | ~60-80 MB* |
 | **Memory per Tab** | ~20-40 MB (lazy loaded) |
+| **Adblock Rules** | 100,000+ |
 
 *Memory usage is dominated by WebKitGTK. The browser chrome itself adds minimal overhead.
 
@@ -55,11 +70,12 @@ Tested on:
 
 All browser data is stored in `~/.local/share/fos-wb/`:
 
-| File | Purpose |
-|------|---------|
+| File/Directory | Purpose |
+|----------------|---------|
 | `cookies.sqlite` | Persistent cookies (stay logged in) |
 | `session.json` | Saved tabs (restored on open) |
 | `cache/` | Web cache |
+| `filters/` | Cached adblock filter lists |
 
 ## 🚀 Installation
 
@@ -97,7 +113,7 @@ cp target/release/fos-wb ~/.local/bin/
 cat > ~/.local/share/applications/fos-wb.desktop << 'EOF'
 [Desktop Entry]
 Name=fOS-WB
-Comment=Minimal Web Browser
+Comment=Minimal Web Browser with Adblocker
 Exec=$HOME/.local/bin/fos-wb
 Icon=web-browser
 Terminal=false
@@ -133,10 +149,15 @@ cargo build --release
 ```
 fOS-WB/
 ├── crates/
-│   ├── fos-wb/      # Main binary entry point
-│   └── fos-ui/      # GTK4 + WebKitGTK browser UI
-├── Cargo.toml       # Workspace configuration
-├── LICENSE          # GPL-3.0 License
+│   ├── fos-wb/        # Main binary (entry point)
+│   │   └── src/main.rs
+│   └── fos-ui/        # Browser UI + Adblocker
+│       └── src/
+│           ├── lib.rs
+│           ├── webview.rs   # GTK4 + WebKitGTK browser
+│           └── adblocker.rs # Brave's adblock engine
+├── Cargo.toml         # Workspace configuration
+├── LICENSE            # GPL-3.0 License
 └── README.md
 ```
 

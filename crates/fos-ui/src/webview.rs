@@ -84,6 +84,8 @@ pub fn run_webview() -> anyhow::Result<()> {
         .build();
 
     app.connect_activate(|app| {
+        // Initialize adblocker on main GTK thread
+        crate::adblocker::init();
         build_ui(app);
     });
 
@@ -424,6 +426,34 @@ fn create_tab(
         settings.set_enable_offline_web_application_cache(false);
         settings.set_enable_dns_prefetching(true);
     }
+    
+    // Adblocker - intercept resource loads
+    webview.connect_decide_policy(|wv, decision, decision_type| {
+        use webkit6::PolicyDecisionType;
+        
+        if decision_type == PolicyDecisionType::NavigationAction 
+            || decision_type == PolicyDecisionType::NewWindowAction {
+            // Allow navigation
+            return false;
+        }
+        
+        // For resource requests, check the adblocker
+        if decision_type == PolicyDecisionType::Response {
+            if let Some(response_decision) = decision.downcast_ref::<webkit6::ResponsePolicyDecision>() {
+                if let Some(request) = response_decision.request() {
+                    if let Some(uri) = request.uri() {
+                        let source = wv.uri().map(|s| s.to_string()).unwrap_or_default();
+                        if crate::adblocker::should_block(&uri, &source, "other") {
+                            decision.ignore();
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        
+        false // Let WebKit handle it
+    });
 
     if load_now {
         webview.load_uri(url);
