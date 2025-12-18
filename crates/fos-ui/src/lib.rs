@@ -1,11 +1,7 @@
 //! fOS Browser UI
 //!
-//! Provides the browser using:
-//! - shell: Custom GPU-rendered chrome (tabs, address bar)
-//! - webview: System WebView for full web content (HTML/CSS/JS)
+//! Provides the browser using GTK4 + WebKitGTK6.
 
-mod shell;
 mod webview;
 
-pub use shell::run;
 pub use webview::{run_webview, WebBrowser};

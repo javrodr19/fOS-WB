@@ -6,14 +6,10 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-fos-tabs = { path = "../fos-tabs" }
-fos-render = { path = "../fos-render" }
+# Core browser - GTK4 + WebKitGTK6
+gtk4 = "0.9"
+webkit6 = "0.4"
 
-winit.workspace = true
-wgpu.workspace = true
-wry.workspace = true
-tao.workspace = true
+# Logging and errors
 tracing.workspace = true
 anyhow.workspace = true
-tokio.workspace = true
-pollster = "0.4"
