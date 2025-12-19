@@ -433,21 +433,35 @@ fn create_tab(
         .network_session(&session)
         .build();
 
-    // Settings
+    // Settings - optimized for video playback
     if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
         settings.set_enable_javascript(true);
         settings.set_enable_smooth_scrolling(true);
         settings.set_hardware_acceleration_policy(webkit6::HardwareAccelerationPolicy::Always);
         settings.set_enable_developer_extras(false);
-        settings.set_enable_webgl(false);
-        settings.set_enable_webaudio(true);
+        
+        // Video playback - critical for seeking to work
+        settings.set_enable_mediasource(true);      // MSE for YouTube/streaming
         settings.set_enable_media(true);
-        settings.set_enable_page_cache(false);
-        settings.set_enable_offline_web_application_cache(false);
+        settings.set_enable_webaudio(true);
+        settings.set_enable_webgl(true);            // Required for some video players
+        settings.set_enable_encrypted_media(true);  // DRM content
+        settings.set_enable_fullscreen(true);       // Fullscreen video
+        settings.set_media_playback_requires_user_gesture(false);
+        settings.set_media_playback_allows_inline(true);  // Inline video in iframes
+        
+        // Caching - helps with seek buffering
+        settings.set_enable_page_cache(true);
+        settings.set_enable_offline_web_application_cache(true);
         settings.set_enable_dns_prefetching(true);
+        
+        // Iframe permissions for embedded players
+        settings.set_allow_file_access_from_file_urls(true);
+        settings.set_allow_universal_access_from_file_urls(true);
+        settings.set_javascript_can_open_windows_automatically(true);
     }
     
-    // Adblocker - intercept resource loads
+    // Adblocker - intercept resource loads (skip for media)
     webview.connect_decide_policy(|wv, decision, decision_type| {
         use webkit6::PolicyDecisionType;
         
@@ -457,11 +471,34 @@ fn create_tab(
             return false;
         }
         
-        // For resource requests, check the adblocker
+        // For resource requests, check the adblocker (but skip media)
         if decision_type == PolicyDecisionType::Response {
             if let Some(response_decision) = decision.downcast_ref::<webkit6::ResponsePolicyDecision>() {
+                // Skip blocking for media content types
+                if let Some(response) = response_decision.response() {
+                    if let Some(mime) = response.mime_type() {
+                        let mime = mime.to_lowercase();
+                        if mime.starts_with("video/") || mime.starts_with("audio/") 
+                            || mime.contains("mp4") || mime.contains("webm") 
+                            || mime.contains("mpeg") || mime.contains("ogg") {
+                            return false; // Never block media
+                        }
+                    }
+                }
+                
                 if let Some(request) = response_decision.request() {
                     if let Some(uri) = request.uri() {
+                        // Don't block common video embed domains
+                        let uri_lower = uri.to_lowercase();
+                        if uri_lower.contains("youtube.com") || uri_lower.contains("ytimg.com")
+                            || uri_lower.contains("vimeo.com") || uri_lower.contains("vimeocdn.com")
+                            || uri_lower.contains("twitch.tv") || uri_lower.contains("dailymotion")
+                            || uri_lower.contains("jwplatform.com") || uri_lower.contains("jwpcdn.com")
+                            || uri_lower.contains("cloudflare") || uri_lower.contains("akamai")
+                            || uri_lower.contains(".m3u8") || uri_lower.contains(".mpd") {
+                            return false; // Allow video CDN and streaming
+                        }
+                        
                         let source = wv.uri().map(|s| s.to_string()).unwrap_or_default();
                         if crate::adblocker::should_block(&uri, &source, "other") {
                             decision.ignore();
@@ -530,6 +567,33 @@ fn create_tab(
                         if let Some(uri) = webview.uri() {
                             addr.set_text(&uri);
                         }
+                    }
+                }
+            }
+        });
+    }
+
+    // Inject adblock scripts when page loads
+    {
+        webview.connect_load_changed(move |wv, event| {
+            use webkit6::LoadEvent;
+            
+            // Inject scripts when DOM is ready
+            if event == LoadEvent::Committed || event == LoadEvent::Finished {
+                if let Some(uri) = wv.uri() {
+                    let uri_str = uri.to_string();
+                    
+                    // Inject cosmetic filters (element hiding CSS)
+                    let cosmetic_css = crate::adblocker::get_cosmetic_filters(&uri_str);
+                    if !cosmetic_css.is_empty() {
+                        let cosmetic_script = crate::adblocker::get_cosmetic_script(&cosmetic_css);
+                        wv.evaluate_javascript(&cosmetic_script, None, None, None::<&gtk4::gio::Cancellable>, |_| {});
+                    }
+                    
+                    // Inject YouTube ad-skip script
+                    if uri_str.contains("youtube.com") || uri_str.contains("youtu.be") {
+                        let youtube_script = crate::adblocker::get_youtube_adskip_script();
+                        wv.evaluate_javascript(youtube_script, None, None, None::<&gtk4::gio::Cancellable>, |_| {});
                     }
                 }
             }
