@@ -266,6 +266,7 @@ pub fn init() {
 }
 
 /// Force refresh all filter lists (delete cache and re-download)
+#[allow(dead_code)]
 pub fn refresh_filters() {
     info!("Refreshing filter lists...");
     let filter_dir = get_filter_dir();
