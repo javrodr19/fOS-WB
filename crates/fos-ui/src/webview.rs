@@ -437,7 +437,7 @@ fn create_tab(
     if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
         settings.set_enable_javascript(true);
         settings.set_enable_smooth_scrolling(true);
-        settings.set_hardware_acceleration_policy(webkit6::HardwareAccelerationPolicy::Always);
+        settings.set_hardware_acceleration_policy(webkit6::HardwareAccelerationPolicy::Never);
         settings.set_enable_developer_extras(false);
         
         // Video playback - critical for seeking to work
