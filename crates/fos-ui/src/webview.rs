@@ -78,6 +78,7 @@ struct BrowserState {
 struct TabInfo {
     webview: WebView,
     row: ListBoxRow,
+    row_label: Label,
     url: String,
     loaded: bool,
 }
@@ -207,13 +208,19 @@ fn build_ui(app: &Application) {
         window.connect_close_request(move |_| {
             let state = s.borrow();
             let tabs: Vec<TabData> = state.tabs.iter().map(|t| {
+                // Get title from the row label (always up-to-date)
+                let label_title = t.row_label.text().to_string();
                 TabData {
                     url: t.webview.uri()
                         .map(|u| u.to_string())
                         .unwrap_or_else(|| t.url.clone()),
-                    title: t.webview.title()
-                        .map(|s| s.to_string())
-                        .unwrap_or_else(|| "New Tab".to_string()),
+                    title: if label_title.is_empty() || label_title == "Loading..." {
+                        t.webview.title()
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| "New Tab".to_string())
+                    } else {
+                        label_title
+                    },
                 }
             }).collect();
             save_session(&tabs, state.active_tab);
@@ -468,6 +475,23 @@ fn create_tab(
         false // Let WebKit handle it
     });
 
+    // Fullscreen handlers - prevent window state corruption
+    {
+        let win = container.root().and_downcast::<ApplicationWindow>();
+        if let Some(window) = win {
+            let w = window.clone();
+            webview.connect_enter_fullscreen(move |_| {
+                w.fullscreen();
+                true // Signal handled
+            });
+            let w = window.clone();
+            webview.connect_leave_fullscreen(move |_| {
+                w.unfullscreen();
+                true
+            });
+        }
+    }
+
     if load_now {
         webview.load_uri(url);
     }
@@ -524,6 +548,7 @@ fn create_tab(
         s.tabs.push(TabInfo {
             webview: webview.clone(),
             row: row.clone(),
+            row_label: row_label.clone(),
             url: url.to_string(),
             loaded: load_now,
         });
