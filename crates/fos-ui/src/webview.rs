@@ -433,12 +433,15 @@ fn create_tab(
         .network_session(&session)
         .build();
 
-    // Settings - optimized for video playback
+    // Settings - optimized for speed and video playback
     if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
         settings.set_enable_javascript(true);
         settings.set_enable_smooth_scrolling(true);
-        settings.set_hardware_acceleration_policy(webkit6::HardwareAccelerationPolicy::Never);
         settings.set_enable_developer_extras(false);
+        
+        // Performance optimizations (HW accel disabled due to flickering on this GPU)
+        settings.set_hardware_acceleration_policy(webkit6::HardwareAccelerationPolicy::Never);
+        settings.set_enable_site_specific_quirks(true);    // Browser compatibility
         
         // Video playback - critical for seeking to work
         settings.set_enable_mediasource(true);      // MSE for YouTube/streaming
@@ -450,7 +453,7 @@ fn create_tab(
         settings.set_media_playback_requires_user_gesture(false);
         settings.set_media_playback_allows_inline(true);  // Inline video in iframes
         
-        // Caching - helps with seek buffering
+        // Caching - faster page loads
         settings.set_enable_page_cache(true);
         settings.set_enable_offline_web_application_cache(true);
         settings.set_enable_dns_prefetching(true);
